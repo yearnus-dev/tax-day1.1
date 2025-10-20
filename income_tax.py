@@ -27,12 +27,3 @@ st.subheader("📊 계산 결과")
 st.write(f"**소득 수준:** {level}")
 st.write(f"**소득 금액:** {income:,.0f} 원")
 st.write(f"**예상 세금:** {tax:,.0f} 원")
-
-# 시각화 (선택사항)
-import pandas as pd
-
-df = pd.DataFrame({
-    "항목": ["세후 금액", "세금"],
-    "금액": [income - tax, tax]
-})
-st.bar_chart(df.set_index("항목"))
