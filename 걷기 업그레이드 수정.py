@@ -1,225 +1,183 @@
 import streamlit as st
-import time
-import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+import pandas as pd
 
-# 🎨 페이지 기본 설정
-st.set_page_config(
-    page_title="당뇨병 걷기운동 가이드 챗봇",
-    page_icon="🏃‍♂️",
-    layout="centered"
-)
-
-# 🌤️ 제목
-st.title("🤖 당뇨병 환자 걷기운동 가이드 챗봇")
-st.caption("맞춤형 운동량을 단계별로 추천해드립니다. (의학적 조언 대체 아님)")
+# 🎯 기본 설정
+st.set_page_config(page_title="당뇨병 걷기운동 챗봇", page_icon="🏃‍♀️", layout="centered")
 
 # 🧠 세션 상태 초기화
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 if "step" not in st.session_state:
     st.session_state.step = 0
-    st.session_state.userData = {
+if "user_data" not in st.session_state:
+    st.session_state.user_data = {
         "age": None,
-        "ageGroup": None,
-        "diabetesType": None,
-        "activityLevel": None,
+        "age_group": None,
+        "diabetes_type": None,
+        "activity_level": None,
         "complications": None,
-        "userSteps": None
+        "goal_steps": None
     }
-    st.session_state.messages = [
-        {"type": "bot", "text": "안녕하세요! 👋 당뇨병 환자를 위한 걷기운동 가이드 챗봇입니다."},
-        {"type": "bot", "text": "맞춤형 걷기운동 권장량을 안내해드리겠습니다. 몇 가지 질문에 답변해주세요."},
-        {"type": "bot", "text": "현재 나이를 입력해주세요. (예: 35)"}
-    ]
 
-
-# 💬 대화 UI 출력
-for msg in st.session_state.messages:
-    if msg["type"] == "bot":
-        st.markdown(f"**🤖 {msg['text']}**")
-    else:
-        st.markdown(
-            f"<div style='text-align:right;color:#3b82f6;'>🧍‍♂️ {msg['text']}</div>",
-            unsafe_allow_html=True
-        )
-
-
-# 📊 연령대 분류 함수
-def get_age_group(age: int):
-    if 30 <= age < 40:
-        return "30대"
-    elif 40 <= age < 50:
-        return "40대"
-    elif 50 <= age < 60:
-        return "50대"
-    elif age >= 60:
-        return "60대 이상"
-    else:
+# 🎯 나이 그룹 계산 함수
+def get_age_group(age):
+    if age < 30:
         return None
+    elif age < 50:
+        return "30~49세"
+    elif age < 65:
+        return "50~64세"
+    else:
+        return "65세 이상"
 
-
-# 📋 권장사항 함수
-def get_recommendation(age_group):
-    recommendations = {
-        "30대": {"steps": 10000, "minutes": "30-40", "intensity": "중강도",
-                 "details": "빠르게 걷기, 약간 숨이 찰 정도의 속도", "frequency": "주 5회 이상"},
-        "40대": {"steps": 10000, "minutes": "30-40", "intensity": "중강도",
-                 "details": "빠르게 걷기, 대화는 가능하지만 노래는 어려운 정도", "frequency": "주 5회 이상"},
-        "50대": {"steps": 9000, "minutes": "25-35", "intensity": "중강도",
-                 "details": "편안한 속도로 빠르게 걷기", "frequency": "주 5회 이상"},
-        "60대 이상": {"steps": 7500, "minutes": "20-30", "intensity": "저-중강도",
-                      "details": "편안한 속도로 걷기, 무리하지 않는 범위", "frequency": "주 5회 이상"}
+# 🚶‍♂️ 권장 걷기량 계산
+def get_recommendation(data):
+    base_steps = {
+        "30~49세": 9000,
+        "50~64세": 8000,
+        "65세 이상": 7000
     }
-    return recommendations.get(age_group, None)
 
+    multiplier = 1.0
+    if data["activity_level"] == "활동적":
+        multiplier -= 0.1
+    elif data["activity_level"] == "비활동적":
+        multiplier += 0.2
 
-# 🧩 단계별 로직
+    if data["complications"] == "있음":
+        multiplier -= 0.2
+
+    steps = int(base_steps[data["age_group"]] * multiplier)
+    return max(steps, 3000)
+
+# 💬 챗봇 메시지 출력 함수
+def add_bot_message(text):
+    st.session_state.messages.append({"type": "bot", "text": text})
+
+# 💡 챗봇 로직
 def chatbot_logic(user_input):
     step = st.session_state.step
-    userData = st.session_state.userData
-    msgs = st.session_state.messages
+    data = st.session_state.user_data
 
-    if step == 0:  # 나이 입력
+    if step == 0:
         try:
             age = int(user_input)
+            age_group = get_age_group(age)
+            if not age_group:
+                add_bot_message("30세 이상의 올바른 나이를 입력해주세요.")
+                return
+            data["age"] = age
+            data["age_group"] = age_group
+            add_bot_message(f"좋아요. {age_group}군이시군요! 😊")
+            add_bot_message("당뇨병 유형을 선택해주세요.")
+            st.session_state.step = 1
         except ValueError:
-            msgs.append({"type": "bot", "text": "30세 이상의 올바른 숫자를 입력해주세요."})
+            add_bot_message("숫자로 된 나이를 입력해주세요.")
             return
 
-        age_group = get_age_group(age)
-        if not age_group:
-            msgs.append({"type": "bot", "text": "30세 이상의 올바른 나이를 입력해주세요."})
+    elif step == 1:
+        if user_input not in ["제1형", "제2형"]:
+            add_bot_message("‘제1형’ 또는 ‘제2형’을 입력해주세요.")
             return
-
-        userData["age"] = age
-        userData["ageGroup"] = age_group
-        msgs.append({"type": "bot", "text": f"{age_group}이시군요. 당뇨병 유형을 선택해주세요."})
-        st.session_state.step = 1
-        st.session_state.choices = ["1형 당뇨병", "2형 당뇨병"]
-        return
-
-    elif step == 1:  # 당뇨병 유형
-        if user_input not in ["1형 당뇨병", "2형 당뇨병"]:
-            msgs.append({"type": "bot", "text": "1형 또는 2형을 선택해주세요."})
-            return
-        userData["diabetesType"] = user_input
-        msgs.append({"type": "bot", "text": "현재 평소 활동 수준은 어떠신가요?"})
+        data["diabetes_type"] = user_input
+        add_bot_message(f"{user_input} 당뇨병이시군요.")
+        add_bot_message("현재 활동 수준을 알려주세요. (활동적 / 보통 / 비활동적)")
         st.session_state.step = 2
-        st.session_state.choices = ["거의 안함", "가끔 (주 1-2회)", "자주 (주 3-4회)", "매우 자주 (주 5회 이상)"]
-        return
 
-    elif step == 2:  # 활동 수준
-        userData["activityLevel"] = user_input
-        msgs.append({"type": "bot", "text": "당뇨 합병증(신장, 망막, 신경병증 등)이 있으신가요?"})
+    elif step == 2:
+        if user_input not in ["활동적", "보통", "비활동적"]:
+            add_bot_message("‘활동적’, ‘보통’, 또는 ‘비활동적’ 중 하나로 입력해주세요.")
+            return
+        data["activity_level"] = user_input
+        add_bot_message("좋아요. 😊")
+        add_bot_message("합병증이 있으신가요? (있음 / 없음)")
         st.session_state.step = 3
-        st.session_state.choices = ["없음", "있음"]
-        return
 
-    elif step == 3:  # 합병증 여부
-        userData["complications"] = user_input
-        msgs.append({"type": "bot", "text": "정보를 분석 중입니다... ⏳"})
+    elif step == 3:
+        if user_input not in ["있음", "없음"]:
+            add_bot_message("‘있음’ 또는 ‘없음’을 입력해주세요.")
+            return
+        data["complications"] = user_input
+        goal = get_recommendation(data)
+        data["goal_steps"] = goal
+
+        add_bot_message("감사합니다! 🚶‍♂️ 이제 결과를 계산할게요...")
         st.session_state.step = 4
+        show_recommendation()
 
-        # --- 결과 표시 ---
-        rec = get_recommendation(userData["ageGroup"])
-        time.sleep(1.2)
-        msgs.append({"type": "bot", "text": f"📊 {userData['ageGroup']} {userData['diabetesType']} 환자님을 위한 걷기운동 권장사항입니다."})
-        time.sleep(0.8)
-        msgs.append({"type": "bot", "text":
-            f"🚶‍♂️ **하루 권장 걸음 수**: {rec['steps']:,}걸음\n"
-            f"⏱️ **하루 권장 시간**: {rec['minutes']}분\n"
-            f"💪 **운동 강도**: {rec['intensity']}\n"
-            f"📅 **빈도**: {rec['frequency']}\n"
-            f"✨ **세부사항**: {rec['details']}"
-        })
+    elif step == 5 and user_input in ["예", "다시 시작"]:
+        reset_chat()
 
-        warnings = [
-            "• 운동 전후 혈당을 측정하세요",
-            "• 저혈당 대비 간식을 준비하세요",
-            "• 편안한 운동화를 착용하세요",
-            "• 발에 물집이나 상처가 없는지 확인하세요"
-        ]
-        if userData["complications"] == "있음":
-            warnings.append("• 합병증이 있으므로 반드시 담당 의사와 상담 후 운동하세요")
-            warnings.append("• 처음에는 짧은 시간부터 시작하세요")
-        if userData["activityLevel"] == "거의 안함":
-            warnings.append("• 현재 활동량이 적으므로 권장량의 50%부터 시작하세요")
-            warnings.append("• 2-4주에 걸쳐 점진적으로 늘려가세요")
+# 🎯 결과 및 시각화 표시
+def show_recommendation():
+    data = st.session_state.user_data
+    goal = data["goal_steps"]
 
-        msgs.append({"type": "bot", "text": "⚠️ **중요 주의사항**\n" + "\n".join(warnings)})
-        msgs.append({"type": "bot", "text": "💡 **추가 팁**\n• 식후 1~2시간 후 걷기가 혈당 조절에 효과적입니다.\n• 걷기를 여러 번 나누어 해도 좋습니다 (예: 10분씩 3회)\n• 스마트폰 앱으로 걸음 수를 기록하세요."})
-        msgs.append({"type": "bot", "text": "⚕️ 본 권장사항은 일반적인 가이드라인이며, 운동 전 반드시 담당 의사와 상담하세요."})
+    add_bot_message(f"📊 {data['age_group']} {data['diabetes_type']} 당뇨병 환자의 권장 걷기량은 하루 {goal:,}보입니다.")
+    add_bot_message("참고: 꾸준한 걷기는 혈당 조절에 큰 도움이 됩니다. 😊")
 
-        # --- 시각화 단계로 이동 ---
-        st.session_state.recommendation = rec
-        st.session_state.step = 4.5
-        st.session_state.choices = None
-        return
+    # 예시 실제 걸음 수 생성 (랜덤 또는 사용자가 입력 가능하게 수정 가능)
+    actual_steps = goal * 0.85  # 예: 85% 달성
 
+    # 시각화 데이터
+    df = pd.DataFrame({
+        "항목": ["실제 걸음 수", "목표 걸음 수"],
+        "걸음 수": [actual_steps, goal]
+    })
 
-# 🎨 사용자 입력 처리
-user_input = None
-choices = st.session_state.get("choices", None)
-
-if st.session_state.step < 4.5:
-    if choices:
-        user_input = st.radio("선택지를 고르세요 👇", choices, key=f"radio_{st.session_state.step}")
-        if st.button("확인"):
-            st.session_state.messages.append({"type": "user", "text": user_input})
-            chatbot_logic(user_input)
-            st.rerun()
-    else:
-        user_input = st.text_input("✏️ 메시지를 입력하세요", key=f"text_{st.session_state.step}")
-        if st.button("보내기"):
-            if user_input.strip():
-                st.session_state.messages.append({"type": "user", "text": user_input})
-                chatbot_logic(user_input)
-                st.rerun()
-else:
-    # 🧩 그래프 표시 단계
-    rec = st.session_state.recommendation
-    userData = st.session_state.userData
-
-    st.markdown("### 📈 내 걸음 수와 권장 걸음 수 비교")
-
-    # 사용자 입력: 실제 하루 걸음 수
-    user_steps = st.number_input(
-        "당신의 하루 평균 걸음 수를 입력하세요 👣",
-        min_value=0, max_value=50000, step=500,
-        value=rec["steps"] // 2
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=df["항목"],
+        y=df["걸음 수"],
+        text=df["걸음 수"],
+        textposition="auto",
+        marker_color=["#7FDBFF", "#FF851B"]
+    ))
+    fig.update_layout(
+        title="하루 걸음 수 vs 목표 걸음 수",
+        yaxis_title="걸음 수",
+        template="plotly_white"
     )
-    userData["userSteps"] = user_steps
 
-    # 시각화 생성
-    fig, ax = plt.subplots()
-    bars = ax.bar(["내 걸음 수", "권장 걸음 수"], [user_steps, rec["steps"]], width=0.5)
-    bars[0].set_alpha(0.7)
-    bars[1].set_alpha(0.9)
-    ax.set_ylabel("걸음 수 (steps)")
-    ax.set_ylim(0, max(user_steps, rec["steps"]) * 1.2)
+    st.session_state.recommendation_chart = fig
+    st.session_state.step = 5
+    add_bot_message("시각화 결과를 아래에서 확인하세요 👇")
 
-    # 색상 표시
-    bars[0].set_color("#60a5fa")  # 파랑
-    bars[1].set_color("#22c55e")  # 초록
+# ♻️ 리셋
+def reset_chat():
+    st.session_state.messages = []
+    st.session_state.user_data = {
+        "age": None, "age_group": None, "diabetes_type": None,
+        "activity_level": None, "complications": None, "goal_steps": None
+    }
+    st.session_state.step = 0
+    add_bot_message("안녕하세요! 👋 당뇨병 환자를 위한 걷기운동 가이드 챗봇입니다.")
+    add_bot_message("현재 나이를 입력해주세요. (예: 45)")
 
-    # 텍스트 라벨
-    for i, v in enumerate([user_steps, rec["steps"]]):
-        ax.text(i, v + 300, f"{v:,}", ha="center", fontsize=12)
+# 🧭 인터페이스 렌더링
+st.title("🏃‍♀️ 당뇨병 환자 걷기운동 가이드 챗봇")
 
-    st.pyplot(fig)
+# 첫 메시지
+if len(st.session_state.messages) == 0:
+    add_bot_message("안녕하세요! 👋 당뇨병 환자를 위한 걷기운동 가이드 챗봇입니다.")
+    add_bot_message("현재 나이를 입력해주세요. (예: 45)")
 
-    # 피드백 메시지
-    if user_steps < rec["steps"] * 0.8:
-        st.info("🏃‍♂️ 권장량에 비해 조금 부족해요. 조금 더 걸으면 혈당 조절에 도움이 됩니다!")
-    elif user_steps > rec["steps"] * 1.2:
-        st.success("🌟 훌륭해요! 권장량을 초과하고 있습니다.")
+# 메시지 출력
+for msg in st.session_state.messages:
+    if msg["type"] == "bot":
+        st.markdown(f"🩺 **{msg['text']}**")
     else:
-        st.success("✅ 적절한 수준의 걷기 운동을 하고 계세요!")
+        st.markdown(f"👤 {msg['text']}")
 
-    st.markdown("---")
-    if st.button("🔁 새로 시작하기"):
-        st.session_state.clear()
+# 입력창
+user_input = st.text_input("메시지를 입력하세요", key="user_input")
+if st.button("보내기"):
+    if user_input.strip():
+        st.session_state.messages.append({"type": "user", "text": user_input})
+        chatbot_logic(user_input.strip())
         st.rerun()
 
-
-# 🟡 주의 문구
-st.markdown("---")
-st.warning("⚠️ 본 챗봇은 일반적인 정보 제공 목적이며, 의학적 조언을 대체하지 않습니다. 운동 전 반드시 의사와 상담하세요.")
+# 결과 시각화 표시
+if "recommendation_chart" in st.session_state:
+    st.plotly_chart(st.session_state.recommendation_chart, use_container_width=True)
