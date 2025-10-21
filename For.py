@@ -1,4 +1,9 @@
-# 납세자 데이터 (이름, 소득)
+import streamlit as st
+
+# 제목
+st.title("💰 납세자 세금 계산기")
+
+# 납세자 데이터
 taxpayers = [
     {"name": "홍길동", "income": 55000000},
     {"name": "김철수", "income": 42000000},
@@ -14,7 +19,13 @@ def calculate_tax(income):
     else:
         return income * 0.24  # 24%
 
-# for문으로 각 납세자 반복 처리
-for person in taxpayers:
-    tax = calculate_tax(person["income"])
-    print(f"{person['name']}의 세금은 {tax:,.0f}원입니다.")
+# 납세자 데이터 표시
+st.subheader("📋 납세자 데이터")
+st.table(taxpayers)
+
+# 버튼 클릭 시 세금 계산
+if st.button("세금 계산하기"):
+    st.subheader("💵 계산 결과")
+    for person in taxpayers:
+        tax = calculate_tax(person["income"])
+        st.write(f"**{person['name']}**의 세금은 **{tax:,.0f}원** 입니다.")
