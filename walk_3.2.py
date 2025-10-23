@@ -1,8 +1,5 @@
 import streamlit as st
 import pandas as pd
-import plotly.graph_objects as go
-import plotly.express as px
-from datetime import datetime, timedelta
 import random
 
 st.set_page_config(page_title="당뇨병 예방 걷기운동 대시보드", page_icon="🚶‍♂️", layout="wide")
@@ -52,6 +49,18 @@ st.markdown("""
         border-left: 4px solid #00acc1;
         margin-top: 20px;
     }
+    .chart-bar {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        height: 30px;
+        border-radius: 5px;
+        transition: width 0.3s;
+    }
+    .chart-container {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -90,7 +99,7 @@ st.caption(f"{current_steps:,} / {daily_goal:,}보 ({progress:.1f}%)")
 
 st.markdown("---")
 
-# 차트 섹션
+# 차트 섹션 (Streamlit 기본 차트 사용)
 chart_col1, chart_col2 = st.columns(2)
 
 with chart_col1:
@@ -101,28 +110,7 @@ with chart_col1:
         '목표': [10000] * 7
     })
     
-    fig1 = go.Figure()
-    fig1.add_trace(go.Bar(
-        x=weekly_data['요일'],
-        y=weekly_data['걸음 수'],
-        name='걸음 수',
-        marker_color='#667eea'
-    ))
-    fig1.add_trace(go.Bar(
-        x=weekly_data['요일'],
-        y=weekly_data['목표'],
-        name='목표',
-        marker_color='#e0e7ff'
-    ))
-    fig1.update_layout(
-        height=300,
-        margin=dict(l=0, r=0, t=0, b=0),
-        barmode='group',
-        showlegend=True,
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)'
-    )
-    st.plotly_chart(fig1, use_container_width=True)
+    st.bar_chart(weekly_data.set_index('요일')[['걸음 수', '목표']])
 
 with chart_col2:
     st.markdown("### ⏰ 시간대별 활동량")
@@ -131,21 +119,7 @@ with chart_col2:
         '걸음 수': [1200, 800, 1500, 900, 1800, 343]
     })
     
-    fig2 = go.Figure()
-    fig2.add_trace(go.Scatter(
-        x=hourly_data['시간'],
-        y=hourly_data['걸음 수'],
-        mode='lines+markers',
-        line=dict(color='#3b82f6', width=3),
-        marker=dict(size=10, color='#3b82f6')
-    ))
-    fig2.update_layout(
-        height=300,
-        margin=dict(l=0, r=0, t=0, b=0),
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)'
-    )
-    st.plotly_chart(fig2, use_container_width=True)
+    st.line_chart(hourly_data.set_index('시간'))
 
 st.markdown("---")
 
@@ -155,25 +129,30 @@ chat_col1, chat_col2 = st.columns([2, 1])
 with chat_col2:
     st.markdown("### 🎯 목표 달성률")
     
-    achievement_data = pd.DataFrame({
-        '구분': ['달성', '남은 목표'],
-        '값': [current_steps, max(0, daily_goal - current_steps)]
-    })
-    
-    fig3 = go.Figure(data=[go.Pie(
-        labels=achievement_data['구분'],
-        values=achievement_data['값'],
-        hole=0.6,
-        marker_colors=['#667eea', '#e0e7ff']
-    )])
-    fig3.update_layout(
-        height=300,
-        margin=dict(l=0, r=0, t=0, b=0),
-        showlegend=True
-    )
-    st.plotly_chart(fig3, use_container_width=True)
-    
-    st.markdown(f"<div style='text-align: center;'><h2 style='color: #667eea;'>{progress:.0f}%</h2><p>오늘 달성률</p></div>", unsafe_allow_html=True)
+    # 간단한 도넛 차트 대체 (진행률 표시)
+    st.markdown(f"""
+    <div style='text-align: center; background: white; padding: 30px; border-radius: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);'>
+        <div style='width: 200px; height: 200px; margin: 0 auto; border-radius: 50%; 
+                    background: conic-gradient(#667eea 0% {progress}%, #e0e7ff {progress}% 100%);
+                    display: flex; align-items: center; justify-content: center;'>
+            <div style='width: 140px; height: 140px; background: white; border-radius: 50%; 
+                        display: flex; flex-direction: column; align-items: center; justify-content: center;'>
+                <h1 style='color: #667eea; margin: 0;'>{progress:.0f}%</h1>
+                <p style='color: #666; margin: 5px 0 0 0; font-size: 14px;'>오늘 달성률</p>
+            </div>
+        </div>
+        <div style='margin-top: 20px;'>
+            <div style='display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 5px;'>
+                <div style='width: 15px; height: 15px; background: #667eea; border-radius: 3px;'></div>
+                <span>달성: {current_steps:,}보</span>
+            </div>
+            <div style='display: flex; align-items: center; justify-content: center; gap: 10px;'>
+                <div style='width: 15px; height: 15px; background: #e0e7ff; border-radius: 3px;'></div>
+                <span>남은 목표: {max(0, daily_goal - current_steps):,}보</span>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 with chat_col1:
     st.markdown("### 💬 AI 걷기운동 가이드")
@@ -204,6 +183,38 @@ with chat_col1:
         else:
             return "안녕하세요! 걷기운동에 대해 더 궁금한 점을 물어보세요.\n\n추천 질문: '하루 권장 걸음 수', '식후 걷기 효과', '효과적인 걷기 방법'"
     
+    # 추천 질문 버튼
+    st.markdown("**💡 추천 질문:**")
+    button_cols = st.columns(2)
+    with button_cols[0]:
+        if st.button("하루 권장 걸음 수", use_container_width=True):
+            st.session_state.messages.append({"type": "user", "text": "하루 권장 걸음 수는?"})
+            response = generate_response("하루 권장 걸음 수는?")
+            st.session_state.messages.append({"type": "bot", "text": response})
+            st.rerun()
+    with button_cols[1]:
+        if st.button("식후 걷기 효과", use_container_width=True):
+            st.session_state.messages.append({"type": "user", "text": "식후 걷기 효과는?"})
+            response = generate_response("식후 걷기 효과는?")
+            st.session_state.messages.append({"type": "bot", "text": response})
+            st.rerun()
+    
+    button_cols2 = st.columns(2)
+    with button_cols2[0]:
+        if st.button("효과적인 걷기 방법", use_container_width=True):
+            st.session_state.messages.append({"type": "user", "text": "효과적인 걷기 방법은?"})
+            response = generate_response("효과적인 걷기 방법은?")
+            st.session_state.messages.append({"type": "bot", "text": response})
+            st.rerun()
+    with button_cols2[1]:
+        if st.button("당뇨병 예방 효과", use_container_width=True):
+            st.session_state.messages.append({"type": "user", "text": "당뇨병 예방 효과는?"})
+            response = generate_response("당뇨병 예방 효과는?")
+            st.session_state.messages.append({"type": "bot", "text": response})
+            st.rerun()
+    
+    st.markdown("---")
+    
     # 사용자 입력
     user_input = st.text_input("궁금한 점을 물어보세요...", key="chat_input", placeholder="예: 하루에 몇 걸음을 걸어야 하나요?")
     
@@ -228,9 +239,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # 자동 새로고침 버튼 (걸음 수 시뮬레이션)
-if st.button("🔄 걸음 수 업데이트 (시뮬레이션)"):
-    st.session_state.current_steps = min(daily_goal, st.session_state.current_steps + random.randint(50, 200))
-    st.rerun()
+col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 1])
+with col_btn2:
+    if st.button("🔄 걸음 수 업데이트 (시뮬레이션)", use_container_width=True):
+        st.session_state.current_steps = min(daily_goal, st.session_state.current_steps + random.randint(50, 200))
+        st.rerun()
 
 st.markdown("---")
 st.caption("⚠️ 본 대시보드는 일반적인 정보 제공 목적이며, 의학적 조언을 대체하지 않습니다.")
