@@ -179,11 +179,6 @@ if st.button("권장 걷기 시간 계산"):
     st.markdown("---")
 
 # ------------------ 자유 질문 ------------------
-rec = {
-    'bmi': calc_bmi(weight, height),
-    'weekly_minutes': 180,
-    'daily_minutes': 25,
-}
 
 st.markdown("---")
 st.subheader("질문 또는 추가 요청 (자유 입력)")
