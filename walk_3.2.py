@@ -1,310 +1,236 @@
-import React, { useState, useEffect } from 'react';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Activity, TrendingUp, Clock, Flame, MessageCircle, Send, Target } from 'lucide-react';
+import streamlit as st
+import pandas as pd
+import plotly.graph_objects as go
+import plotly.express as px
+from datetime import datetime, timedelta
+import random
 
-const WalkingDashboard = () => {
-  const [messages, setMessages] = useState([
-    { type: 'bot', text: '안녕하세요! 👋 걷기운동에 대해 궁금한 점을 물어보세요.' }
-  ]);
-  const [inputValue, setInputValue] = useState('');
-  const [isTyping, setIsTyping] = useState(false);
-  const [currentSteps, setCurrentSteps] = useState(6543);
-  const [dailyGoal] = useState(10000);
+st.set_page_config(page_title="당뇨병 예방 걷기운동 대시보드", page_icon="🚶‍♂️", layout="wide")
 
-  // 주간 걸음 수 데이터
-  const weeklyData = [
-    { day: '월', steps: 8234, goal: 10000 },
-    { day: '화', steps: 9821, goal: 10000 },
-    { day: '수', steps: 7453, goal: 10000 },
-    { day: '목', steps: 10234, goal: 10000 },
-    { day: '금', steps: 8976, goal: 10000 },
-    { day: '토', steps: 11543, goal: 10000 },
-    { day: '일', steps: 6543, goal: 10000 }
-  ];
+# 세션 상태 초기화
+if 'messages' not in st.session_state:
+    st.session_state.messages = [
+        {"type": "bot", "text": "안녕하세요! 👋 걷기운동에 대해 궁금한 점을 물어보세요."}
+    ]
+if 'current_steps' not in st.session_state:
+    st.session_state.current_steps = 6543
 
-  // 시간대별 활동량
-  const hourlyData = [
-    { time: '06:00', steps: 1200 },
-    { time: '09:00', steps: 800 },
-    { time: '12:00', steps: 1500 },
-    { time: '15:00', steps: 900 },
-    { time: '18:00', steps: 1800 },
-    { time: '21:00', steps: 343 }
-  ];
+# CSS 스타일
+st.markdown("""
+<style>
+    .main {
+        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    }
+    .metric-card {
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        border-left: 4px solid #667eea;
+    }
+    .chat-message {
+        padding: 10px 15px;
+        border-radius: 15px;
+        margin: 5px 0;
+        max-width: 80%;
+    }
+    .user-message {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        margin-left: auto;
+        text-align: right;
+    }
+    .bot-message {
+        background: white;
+        color: #333;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .tip-box {
+        background: linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%);
+        padding: 20px;
+        border-radius: 10px;
+        border-left: 4px solid #00acc1;
+        margin-top: 20px;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-  // 목표 달성률
-  const achievementData = [
-    { name: '달성', value: currentSteps },
-    { name: '남은 목표', value: Math.max(0, dailyGoal - currentSteps) }
-  ];
+# 헤더
+st.markdown("""
+<div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            padding: 30px; border-radius: 15px; color: white; text-align: center; margin-bottom: 20px;'>
+    <h1>🚶‍♂️ 당뇨병 예방 걷기운동 대시보드</h1>
+    <p style='opacity: 0.9; font-size: 16px;'>실시간 통계 + AI 챗봇 가이드</p>
+</div>
+""", unsafe_allow_html=True)
 
-  const COLORS = ['#667eea', '#e0e7ff'];
+# KPI 메트릭
+col1, col2, col3, col4 = st.columns(4)
 
-  // 실시간 걸음 수 시뮬레이션
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentSteps(prev => Math.min(dailyGoal, prev + Math.floor(Math.random() * 50)));
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [dailyGoal]);
+daily_goal = 10000
+current_steps = st.session_state.current_steps
+progress = min(100, (current_steps / daily_goal) * 100)
 
-  const generateResponse = (userMessage) => {
-    const msg = userMessage.toLowerCase();
+with col1:
+    st.metric("🚶 오늘 걸음 수", f"{current_steps:,}보", f"목표: {daily_goal:,}보")
+
+with col2:
+    st.metric("🎯 달성률", f"{progress:.0f}%", "일일 목표 기준")
+
+with col3:
+    st.metric("⏱️ 운동 시간", "42분", "권장: 30분 이상")
+
+with col4:
+    st.metric("🔥 소모 칼로리", "287 kcal", "+15 kcal")
+
+# 진행률 바
+st.markdown("### 📊 일일 목표 진행률")
+st.progress(progress / 100)
+st.caption(f"{current_steps:,} / {daily_goal:,}보 ({progress:.1f}%)")
+
+st.markdown("---")
+
+# 차트 섹션
+chart_col1, chart_col2 = st.columns(2)
+
+with chart_col1:
+    st.markdown("### 📈 주간 걸음 수 추이")
+    weekly_data = pd.DataFrame({
+        '요일': ['월', '화', '수', '목', '금', '토', '일'],
+        '걸음 수': [8234, 9821, 7453, 10234, 8976, 11543, 6543],
+        '목표': [10000] * 7
+    })
     
-    if (msg.includes('걸음') || msg.includes('보수')) {
-      return "20대~40대 남성의 당뇨병 예방을 위한 하루 권장 걸음 수는 약 7,000~10,000보입니다.\n\n• 최소 목표: 7,000보\n• 이상적 목표: 10,000보\n• 현재 대시보드에서 실시간으로 걸음 수를 확인하실 수 있습니다!";
-    }
-    if (msg.includes('시간') || msg.includes('30대') || msg.includes('20대') || msg.includes('40대')) {
-      return "20대~40대 남성의 권장 걷기시간은 하루 30분 이상, 주 5일 이상입니다.\n\n한 번에 30분이 어렵다면 10분씩 3회로 나눠도 좋습니다. 위 차트에서 주간 운동 패턴을 확인해보세요!";
-    }
-    if (msg.includes('식후') || msg.includes('밥') || msg.includes('식사')) {
-      return "식후 걷기는 혈당 급상승을 막고 인슐린 감수성을 높이는 데 도움됩니다.\n\n• 식사 후 10~15분 걷기\n• 저녁 식사 후 걷기가 특히 효과적입니다.\n• 시간대별 차트에서 12시, 18시 이후 활동량을 늘려보세요!";
-    }
-    if (msg.includes('방법') || msg.includes('어떻게') || msg.includes('효과적')) {
-      return "효과적인 걷기 운동 방법:\n\n1. 가슴을 펴고 시선은 전방 15m\n2. 팔은 자연스럽게 흔들기\n3. 발뒤꿈치부터 착지 후 발가락으로 밀기\n4. 분당 100~120보 속도 유지";
-    }
-    if (msg.includes('당뇨') || msg.includes('예방') || msg.includes('효과')) {
-      return "걷기운동은 당뇨병 예방에 매우 효과적입니다!\n\n• 혈당 조절 개선\n• 체중 관리\n• 심혈관 건강 향상\n• 인슐린 감수성 증가";
-    }
+    fig1 = go.Figure()
+    fig1.add_trace(go.Bar(
+        x=weekly_data['요일'],
+        y=weekly_data['걸음 수'],
+        name='걸음 수',
+        marker_color='#667eea'
+    ))
+    fig1.add_trace(go.Bar(
+        x=weekly_data['요일'],
+        y=weekly_data['목표'],
+        name='목표',
+        marker_color='#e0e7ff'
+    ))
+    fig1.update_layout(
+        height=300,
+        margin=dict(l=0, r=0, t=0, b=0),
+        barmode='group',
+        showlegend=True,
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)'
+    )
+    st.plotly_chart(fig1, use_container_width=True)
+
+with chart_col2:
+    st.markdown("### ⏰ 시간대별 활동량")
+    hourly_data = pd.DataFrame({
+        '시간': ['06:00', '09:00', '12:00', '15:00', '18:00', '21:00'],
+        '걸음 수': [1200, 800, 1500, 900, 1800, 343]
+    })
     
-    return "안녕하세요! 걷기운동에 대해 더 궁금한 점을 물어보세요.\n\n추천 질문: '하루 권장 걸음 수', '식후 걷기 효과', '효과적인 걷기 방법'";
-  };
+    fig2 = go.Figure()
+    fig2.add_trace(go.Scatter(
+        x=hourly_data['시간'],
+        y=hourly_data['걸음 수'],
+        mode='lines+markers',
+        line=dict(color='#3b82f6', width=3),
+        marker=dict(size=10, color='#3b82f6')
+    ))
+    fig2.update_layout(
+        height=300,
+        margin=dict(l=0, r=0, t=0, b=0),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)'
+    )
+    st.plotly_chart(fig2, use_container_width=True)
 
-  const handleSend = () => {
-    if (!inputValue.trim()) return;
+st.markdown("---")
 
-    setMessages(prev => [...prev, { type: 'user', text: inputValue }]);
-    setInputValue('');
-    setIsTyping(true);
+# 챗봇 + 도넛차트 섹션
+chat_col1, chat_col2 = st.columns([2, 1])
 
-    setTimeout(() => {
-      const response = generateResponse(inputValue);
-      setMessages(prev => [...prev, { type: 'bot', text: response }]);
-      setIsTyping(false);
-    }, 1000);
-  };
+with chat_col2:
+    st.markdown("### 🎯 목표 달성률")
+    
+    achievement_data = pd.DataFrame({
+        '구분': ['달성', '남은 목표'],
+        '값': [current_steps, max(0, daily_goal - current_steps)]
+    })
+    
+    fig3 = go.Figure(data=[go.Pie(
+        labels=achievement_data['구분'],
+        values=achievement_data['값'],
+        hole=0.6,
+        marker_colors=['#667eea', '#e0e7ff']
+    )])
+    fig3.update_layout(
+        height=300,
+        margin=dict(l=0, r=0, t=0, b=0),
+        showlegend=True
+    )
+    st.plotly_chart(fig3, use_container_width=True)
+    
+    st.markdown(f"<div style='text-align: center;'><h2 style='color: #667eea;'>{progress:.0f}%</h2><p>오늘 달성률</p></div>", unsafe_allow_html=True)
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') handleSend();
-  };
+with chat_col1:
+    st.markdown("### 💬 AI 걷기운동 가이드")
+    
+    # 챗봇 메시지 표시
+    chat_container = st.container()
+    with chat_container:
+        for msg in st.session_state.messages:
+            if msg['type'] == 'user':
+                st.markdown(f"<div class='chat-message user-message'>{msg['text']}</div>", unsafe_allow_html=True)
+            else:
+                st.markdown(f"<div class='chat-message bot-message'>{msg['text']}</div>", unsafe_allow_html=True)
+    
+    # 챗봇 응답 함수
+    def generate_response(user_message):
+        msg = user_message.lower()
+        
+        if '걸음' in msg or '보수' in msg:
+            return "20대~40대 남성의 당뇨병 예방을 위한 하루 권장 걸음 수는 약 7,000~10,000보입니다.\n\n• 최소 목표: 7,000보\n• 이상적 목표: 10,000보\n• 현재 대시보드에서 실시간으로 걸음 수를 확인하실 수 있습니다!"
+        elif '시간' in msg or '30대' in msg or '20대' in msg or '40대' in msg:
+            return "20대~40대 남성의 권장 걷기시간은 하루 30분 이상, 주 5일 이상입니다.\n\n한 번에 30분이 어렵다면 10분씩 3회로 나눠도 좋습니다. 위 차트에서 주간 운동 패턴을 확인해보세요!"
+        elif '식후' in msg or '밥' in msg or '식사' in msg:
+            return "식후 걷기는 혈당 급상승을 막고 인슐린 감수성을 높이는 데 도움됩니다.\n\n• 식사 후 10~15분 걷기\n• 저녁 식사 후 걷기가 특히 효과적입니다.\n• 시간대별 차트에서 12시, 18시 이후 활동량을 늘려보세요!"
+        elif '방법' in msg or '어떻게' in msg or '효과적' in msg:
+            return "효과적인 걷기 운동 방법:\n\n1. 가슴을 펴고 시선은 전방 15m\n2. 팔은 자연스럽게 흔들기\n3. 발뒤꿈치부터 착지 후 발가락으로 밀기\n4. 분당 100~120보 속도 유지"
+        elif '당뇨' in msg or '예방' in msg or '효과' in msg:
+            return "걷기운동은 당뇨병 예방에 매우 효과적입니다!\n\n• 혈당 조절 개선\n• 체중 관리\n• 심혈관 건강 향상\n• 인슐린 감수성 증가"
+        else:
+            return "안녕하세요! 걷기운동에 대해 더 궁금한 점을 물어보세요.\n\n추천 질문: '하루 권장 걸음 수', '식후 걷기 효과', '효과적인 걷기 방법'"
+    
+    # 사용자 입력
+    user_input = st.text_input("궁금한 점을 물어보세요...", key="chat_input", placeholder="예: 하루에 몇 걸음을 걸어야 하나요?")
+    
+    if st.button("💬 전송", use_container_width=True):
+        if user_input.strip():
+            st.session_state.messages.append({"type": "user", "text": user_input})
+            response = generate_response(user_input)
+            st.session_state.messages.append({"type": "bot", "text": response})
+            st.rerun()
 
-  const progressPercentage = Math.min(100, (currentSteps / dailyGoal) * 100);
+# 건강 팁 섹션
+st.markdown("""
+<div class='tip-box'>
+    <h3>💡 오늘의 건강 팁</h3>
+    <ul style='margin-top: 10px; line-height: 1.8;'>
+        <li>✅ 식후 10-15분 걷기로 혈당 관리를 시작하세요</li>
+        <li>✅ 하루 10,000보 목표를 3회로 나눠서 달성해보세요</li>
+        <li>✅ 편안한 운동화 착용으로 발 건강을 지키세요</li>
+        <li>✅ 걷기 전후 스트레칭으로 부상을 예방하세요</li>
+    </ul>
+</div>
+""", unsafe_allow_html=True)
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl shadow-lg p-8 mb-6 text-white">
-          <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-            <Activity className="w-8 h-8" />
-            당뇨병 예방 걷기운동 대시보드
-          </h1>
-          <p className="opacity-90">실시간 통계 + AI 챗봇 가이드</p>
-        </div>
+# 자동 새로고침 버튼 (걸음 수 시뮬레이션)
+if st.button("🔄 걸음 수 업데이트 (시뮬레이션)"):
+    st.session_state.current_steps = min(daily_goal, st.session_state.current_steps + random.randint(50, 200))
+    st.rerun()
 
-        {/* KPI Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-purple-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 text-sm font-medium">오늘 걸음 수</p>
-                <p className="text-3xl font-bold text-gray-800 mt-1">{currentSteps.toLocaleString()}</p>
-                <p className="text-xs text-gray-400 mt-1">목표: {dailyGoal.toLocaleString()}보</p>
-              </div>
-              <Activity className="w-12 h-12 text-purple-500 opacity-20" />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 text-sm font-medium">달성률</p>
-                <p className="text-3xl font-bold text-gray-800 mt-1">{progressPercentage.toFixed(0)}%</p>
-                <p className="text-xs text-gray-400 mt-1">일일 목표 기준</p>
-              </div>
-              <Target className="w-12 h-12 text-blue-500 opacity-20" />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 text-sm font-medium">운동 시간</p>
-                <p className="text-3xl font-bold text-gray-800 mt-1">42분</p>
-                <p className="text-xs text-gray-400 mt-1">권장: 30분 이상</p>
-              </div>
-              <Clock className="w-12 h-12 text-green-500 opacity-20" />
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-orange-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-500 text-sm font-medium">소모 칼로리</p>
-                <p className="text-3xl font-bold text-gray-800 mt-1">287</p>
-                <p className="text-xs text-gray-400 mt-1">kcal</p>
-              </div>
-              <Flame className="w-12 h-12 text-orange-500 opacity-20" />
-            </div>
-          </div>
-        </div>
-
-        {/* Progress Bar */}
-        <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold text-gray-700">일일 목표 진행률</h3>
-            <span className="text-sm font-medium text-purple-600">{currentSteps.toLocaleString()} / {dailyGoal.toLocaleString()}보</span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-            <div 
-              className="bg-gradient-to-r from-purple-500 to-blue-500 h-4 rounded-full transition-all duration-500 flex items-center justify-end pr-2"
-              style={{ width: `${progressPercentage}%` }}
-            >
-              {progressPercentage > 10 && <span className="text-xs text-white font-bold">{progressPercentage.toFixed(0)}%</span>}
-            </div>
-          </div>
-        </div>
-
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* Weekly Steps Chart */}
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 text-purple-600" />
-              주간 걸음 수 추이
-            </h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={weeklyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="day" stroke="#888" />
-                <YAxis stroke="#888" />
-                <Tooltip />
-                <Bar dataKey="steps" fill="#667eea" radius={[8, 8, 0, 0]} />
-                <Bar dataKey="goal" fill="#e0e7ff" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Hourly Activity Chart */}
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <Clock className="w-5 h-5 text-blue-600" />
-              시간대별 활동량
-            </h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <LineChart data={hourlyData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="time" stroke="#888" />
-                <YAxis stroke="#888" />
-                <Tooltip />
-                <Line type="monotone" dataKey="steps" stroke="#3b82f6" strokeWidth={3} dot={{ fill: '#3b82f6', r: 5 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Chatbot + Achievement Chart */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Achievement Pie Chart */}
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <Target className="w-5 h-5 text-green-600" />
-              목표 달성률
-            </h3>
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie
-                  data={achievementData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {achievementData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="text-center mt-2">
-              <p className="text-2xl font-bold text-purple-600">{progressPercentage.toFixed(0)}%</p>
-              <p className="text-sm text-gray-500">오늘 달성률</p>
-            </div>
-          </div>
-
-          {/* Chatbot */}
-          <div className="lg:col-span-2 bg-white rounded-xl shadow-md overflow-hidden flex flex-col" style={{ height: '500px' }}>
-            <div className="bg-gradient-to-r from-purple-600 to-blue-600 p-4 text-white">
-              <h3 className="font-bold flex items-center gap-2">
-                <MessageCircle className="w-5 h-5" />
-                AI 걷기운동 가이드
-              </h3>
-              <p className="text-sm opacity-90">궁금한 점을 물어보세요</p>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
-              {messages.map((msg, idx) => (
-                <div key={idx} className={`mb-4 flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl ${
-                    msg.type === 'user' 
-                      ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white' 
-                      : 'bg-white shadow-md text-gray-800'
-                  }`}>
-                    <p className="text-sm whitespace-pre-line">{msg.text}</p>
-                  </div>
-                </div>
-              ))}
-              {isTyping && (
-                <div className="flex justify-start mb-4">
-                  <div className="bg-white shadow-md px-4 py-3 rounded-2xl">
-                    <div className="flex gap-1">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                      <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="p-4 bg-white border-t flex gap-2">
-              <input
-                type="text"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyPress={handleKeyPress}
-                placeholder="걷기운동에 대해 물어보세요..."
-                className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-full focus:outline-none focus:border-purple-500 transition-colors"
-              />
-              <button
-                onClick={handleSend}
-                className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-full hover:shadow-lg transition-all flex items-center gap-2 font-medium"
-              >
-                <Send className="w-4 h-4" />
-                전송
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Tips Section */}
-        <div className="mt-6 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6 border-l-4 border-green-500">
-          <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
-            💡 오늘의 건강 팁
-          </h3>
-          <ul className="space-y-2 text-sm text-gray-700">
-            <li>✅ 식후 10-15분 걷기로 혈당 관리를 시작하세요</li>
-            <li>✅ 하루 10,000보 목표를 3회로 나눠서 달성해보세요</li>
-            <li>✅ 편안한 운동화 착용으로 발 건강을 지키세요</li>
-            <li>✅ 걷기 전후 스트레칭으로 부상을 예방하세요</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default WalkingDashboard;
+st.markdown("---")
+st.caption("⚠️ 본 대시보드는 일반적인 정보 제공 목적이며, 의학적 조언을 대체하지 않습니다.")
