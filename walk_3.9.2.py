@@ -251,52 +251,27 @@ if st.button("권장 시간 계산 및 4주 루틴 생성"):
         csv = df.to_csv(index=False).encode('utf-8-sig')
         st.download_button("CSV 다운로드", data=csv, file_name=f"walk_plan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv", mime='text/csv')
 
-import matplotlib.pyplot as plt
 
-st.markdown("## 🧭 달성률 체크 플로우차트")
-st.caption("이번 주 실제 걷기 시간을 입력해 달성률과 피드백을 확인하세요.")
 
+st.markdown("## 🧭 달성률 체크")
 actual_minutes = st.number_input("이번 주 실제 걷기 시간(분)", min_value=0, value=0, step=5)
 
 if actual_minutes > 0:
     target = rec['weekly_minutes'] if 'rec' in locals() else 150
     rate = min(100, round(actual_minutes / target * 100, 1))
 
-    # 피드백 문구
-    if rate >= 100:
-        feedback = "🎉 훌륭합니다! 목표를 달성했어요!"
-    elif rate >= 80:
-        feedback = "👍 거의 달성했습니다. 다음 주에는 완전 달성에 도전해봐요!"
-    elif rate >= 50:
-        feedback = "🙂 절반 정도 성공했어요. 꾸준함이 중요합니다!"
-    else:
-        feedback = "💪 아직은 시작 단계예요. 다음 주 조금만 더 걸어볼까요?"
-
-    # 간단한 플로우차트 (matplotlib)
-    fig, ax = plt.subplots(figsize=(7, 2))
-    stages = ["시작", "50% 달성", "80% 달성", "100% 달성"]
-    xpos = [0, 1, 2, 3]
-    colors = []
-    for i in range(4):
-        if rate >= [0, 50, 80, 100][i]:
-            colors.append("skyblue")
-        else:
-            colors.append("lightgray")
-
-    for i, stage in enumerate(stages):
-        ax.scatter(xpos[i], 0, s=1500, color=colors[i], edgecolor="black", zorder=3)
-        ax.text(xpos[i], 0, stage, ha="center", va="center", fontsize=12, weight="bold")
-
-    for i in range(3):
-        ax.plot([xpos[i], xpos[i+1]], [0, 0], color="gray", lw=2, zorder=1)
-
-    ax.axis("off")
-    st.pyplot(fig)
-
+    st.progress(rate / 100.0)
     st.write(f"**달성률:** {rate}%")
-    st.success(feedback)
-else:
-    st.info("이번 주 실제 걷기 시간을 입력하면 달성률 플로우차트가 표시됩니다.")
+
+    if rate >= 100:
+        st.success("🎉 훌륭합니다! 목표를 달성했어요!")
+    elif rate >= 80:
+        st.info("👍 거의 달성했습니다. 다음 주에는 완전 달성에 도전해봐요!")
+    elif rate >= 50:
+        st.warning("🙂 절반 정도 성공했어요. 꾸준함이 중요합니다!")
+    else:
+        st.error("💪 아직은 시작 단계예요. 다음 주 조금만 더 걸어볼까요?")
+
 
 
 st.caption("이 앱은 교육·참고용입니다. 특정 증상이나 고위험 상태가 의심되면 의료 전문가 상담을 우선하세요.")
