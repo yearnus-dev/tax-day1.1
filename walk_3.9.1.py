@@ -4,7 +4,7 @@ from datetime import datetime
 import difflib
 import math
 
-st.set_page_config(page_title="30-50대 개인화 걷기 챗봇", layout="wide")
+st.set_page_config(page_title="30-50대 걷기", layout="wide")
 
 # ------------------ Helpers ------------------
 
@@ -188,66 +188,80 @@ if st.button("권장 시간 계산 및 4주 루틴 생성"):
 
     st.markdown("---")
 
-    # ----------- Fallback Dashboard (no plotly needed) -----------
-    st.markdown("## 🧭 개인 맞춤 대시보드")
+    # ----- 대시보드 시각화 (plotly 없이 작동하는 fallback 버전) -----
+    import pandas as _pd
 
-    col1, col2, col3 = st.columns(3)
+    st.markdown("### 🧭 개인 맞춤 대시보드")
 
-    # 1️⃣ BMI
+    # 👇 작게 표현하기 위해 컬럼 비율을 조정 (전체 폭의 절반 크기)
+    col1, col2, col3 = st.columns([1, 1, 1])
+
+    # BMI 표시
     with col1:
-        bmi_val = rec['bmi'] or 0
-        st.metric("BMI", f"{bmi_val}" if bmi_val else "측정불가")
-        norm = max(0, min(100, int((bmi_val - 10) / (40 - 10) * 100))) if bmi_val else 0
-        st.progress(norm)
-        st.caption(f"범주: {bmi_category(bmi_val) if bmi_val else '측정불가'}")
+        bmi_val = rec.get('bmi') or 0
+        st.markdown("##### BMI")
+        if bmi_val:
+            st.metric(label="", value=f"{bmi_val:.1f}")
+            norm = max(0, min(100, int((bmi_val - 10) / (40 - 10) * 100)))
+            st.progress(norm)
+            st.caption(f"{bmi_category(bmi_val)}")
+        else:
+            st.metric(label="", value="측정불가")
+            st.progress(0)
+            st.caption("정보 없음")
 
-    # 2️⃣ 주간 권장(분)
+    # 주간 권장 걷기(분)
     with col2:
-        weekly_val = rec['weekly_minutes']
-        st.metric("주간 권장(분)", f"{weekly_val} 분")
+        weekly_val = rec.get('weekly_minutes', 0)
+        st.markdown("##### 주간 권장(분)")
+        st.metric(label="", value=f"{weekly_val}분")
         rel = max(0, min(100, int(weekly_val / 300.0 * 100)))
         st.progress(rel)
-        st.caption("권장 범위 기준: 최대 300분")
+        st.caption("목표 300분 기준")
 
-    # 3️⃣ 일일 평균(분)
+    # 일일 평균(분)
     with col3:
-        daily_val = rec['daily_minutes']
-        st.metric("일일 평균(분)", f"{daily_val} 분", delta=f"{daily_val-30} 분 vs 30분 기준")
+        daily_val = rec.get('daily_minutes', 0)
+        st.markdown("##### 일일 평균(분)")
+        st.metric(label="", value=f"{daily_val}분", delta=f"{daily_val - 30:+} vs 기준(30분)")
+        st.progress(min(100, int(daily_val / 60.0 * 100)))
+        st.caption("권장: 30분 이상")
 
     st.markdown("---")
 
-    # 4️⃣ 4주 증가 추세
-    plan = generate_personalized_4week(age, weight, height, goal, rec['weekly_minutes'], 5, "보통")
+    # 4주간 추세 시각화 (bar_chart)
+    st.markdown("#### 📈 4주 진행 추세 (간략 보기)")
     week_labels = [p["주차"] for p in plan]
     totals = [p["주간총시간(분)"] for p in plan]
-    df_weeks = pd.DataFrame({"주차": week_labels, "주간총시간(분)": totals}).set_index("주차")
-    st.subheader("📈 4주 진행 추세")
-    st.bar_chart(df_weeks)
+    df_weeks = _pd.DataFrame({"주차": week_labels, "주간총시간(분)": totals}).set_index("주차")
+    st.bar_chart(df_weeks, use_container_width=True)
+
+    # 요약 카드
+    st.markdown("#### 🔎 요약")
+    cola, colb = st.columns(2)
+    with cola:
+        st.write(f"- **목표:** {goal}")
+        st.write(f"- **주당 권장:** {weekly_val}분")
+        st.write(f"- **일일 평균:** {daily_val}분")
+    with colb:
+        if rec.get('bmi') is not None:
+            st.write(f"- **BMI:** {rec['bmi']:.1f} ({bmi_category(rec['bmi'])})")
+        if rec.get('notes'):
+            st.write("- **참고사항:**")
+            for n in rec['notes']:
+                st.write(f"  - {n}")
 
     st.markdown("---")
 
-    # 루틴 상세
-    for w in plan:
-        st.markdown(f"### {w['주차']} — 총 {w['주간총시간(분)']}분 / 1회 {w['1회시간(분)']}분")
-        for s in w['세부세션']:
-            st.write(f"• 세션 {s['세션번호']}: {s['세션시간(분)']}분 — {s['내용']}")
-        st.markdown("---")
+    # CSV 다운로드 (기존 함수 활용 가능)
+    df_plan = _pd.DataFrame(plan)
+    csv = df_plan.to_csv(index=False).encode('utf-8-sig')
+    st.download_button(
+        label="📥 걷기 계획표 다운로드 (CSV)",
+        data=csv,
+        file_name='walking_plan.csv',
+        mime='text/csv',
+    )
 
-    # CSV 다운로드
-    if st.button("루틴 요약 CSV로 다운로드"):
-        rows = []
-        for w in plan:
-            for s in w['세부세션']:
-                rows.append({
-                    '주차': w['주차'],
-                    '세션번호': s['세션번호'],
-                    '세션시간(분)': s['세션시간(분)'],
-                    '내용': s['내용']
-                })
-        df = pd.DataFrame(rows)
-        csv = df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("CSV 다운로드", data=csv,
-                           file_name=f"walk_plan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                           mime='text/csv')
 
 st.caption("이 앱은 교육·참고용입니다. 특정 증상이나 고위험 상태가 의심되면 의료 전문가 상담을 우선하세요.")
