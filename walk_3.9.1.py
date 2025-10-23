@@ -14,9 +14,7 @@ def calc_bmi(weight_kg, height_cm):
     h = height_cm / 100.0
     return round(weight_kg / (h * h), 1)
 
-
 def age_modifier(age):
-    # small conservative modifier: older adults may progress slightly slower
     if age < 35:
         return 1.0
     elif age < 40:
@@ -28,9 +26,7 @@ def age_modifier(age):
     else:
         return 0.92
 
-
 def bmi_modifier(bmi, goal):
-    # If user aims for weight loss and BMI >= 25, recommend higher weekly minutes
     if bmi is None:
         return 1.0
     if goal == "체중 감량":
@@ -43,13 +39,10 @@ def bmi_modifier(bmi, goal):
     else:
         return 1.0
 
-
 def activity_modifier(activity_level):
     return {"비활동적": 1.0, "보통": 0.95, "매우 활동적": 0.9}.get(activity_level, 1.0)
 
-
 def health_condition_adjustments(conditions):
-    # returns a string warning and a safety factor (<=1 reduces recommended volume)
     if not conditions:
         return "", 1.0
     cond = [c.strip().lower() for c in conditions.split(",")]
@@ -59,56 +52,18 @@ def health_condition_adjustments(conditions):
         if not c:
             continue
         if any(x in c for x in ["심장", "심근", "협심증", "심부전"]):
-            warning.append("심혈관 질환이 의심되거나 진단된 경우, 운동 시작 전 의사 상담 권장")
+            warning.append("심혈관 질환 의심 시 의사 상담 권장")
             factor = min(factor, 0.7)
         if any(x in c for x in ["고혈압", "혈압"]):
-            warning.append("고혈압이 있으면 강도 조절과 의사 상담을 권장")
+            warning.append("고혈압 시 강도 조절 및 상담 필요")
             factor = min(factor, 0.85)
         if any(x in c for x in ["관절", "무릎", "관절염"]):
-            warning.append("관절 문제가 있으면 충격을 줄이는 방식(부드러운 지면, 짧은 세션) 권장")
+            warning.append("관절 문제 시 부드러운 지면·짧은 세션 권장")
             factor = min(factor, 0.8)
         if "임신" in c:
-            warning.append("임신 중일 경우 전문의 상담 필요")
+            warning.append("임신 중은 전문의 상담 필요")
             factor = min(factor, 0.6)
     return "; ".join(warning), factor
-
-
-def compute_recommendation(age, weight, height, sex, activity_level, goal, conditions, weekly_target_override=None):
-    # Base weekly target: WHO 150 min moderate. Allow user override.
-    base_weekly = 150
-    if goal == "심폐 지구력 향상":
-        base_weekly = 200
-    elif goal == "체중 감량":
-        base_weekly = 225
-
-    if weekly_target_override is not None and weekly_target_override > 0:
-        base_weekly = weekly_target_override
-
-    bmi = calc_bmi(weight, height) if weight and height else None
-    amod = age_modifier(age)
-    bmod = bmi_modifier(bmi, goal)
-    actmod = activity_modifier(activity_level)
-    cond_warning, cond_factor = health_condition_adjustments(conditions)
-
-    # combine modifiers (multiply)
-    weekly = base_weekly * amod * bmod * actmod * cond_factor
-    weekly = max(60, round(weekly))  # floor minimum
-    daily = round(weekly / 7.0)
-
-    notes = []
-    if bmi is not None:
-        notes.append(f"BMI: {bmi} ({bmi_category(bmi)})")
-    if cond_warning:
-        notes.append(cond_warning)
-    notes.append(f"조정 계수: 연령 {amod:.2f} x 체형/목표 {bmod:.2f} x 활동수준 {actmod:.2f} x 건강요인 {cond_factor:.2f}" if False else "(세부 조정은 내부 규칙에 따라 계산됨)")
-
-    return {
-        "weekly_minutes": int(weekly),
-        "daily_minutes": int(daily),
-        "bmi": bmi,
-        "notes": notes
-    }
-
 
 def bmi_category(bmi):
     if bmi is None:
@@ -124,13 +79,44 @@ def bmi_category(bmi):
     else:
         return "비만"
 
+def compute_recommendation(age, weight, height, sex, activity_level, goal, conditions, weekly_target_override=None):
+    base_weekly = 150
+    if goal == "심폐 지구력 향상":
+        base_weekly = 200
+    elif goal == "체중 감량":
+        base_weekly = 225
+
+    if weekly_target_override is not None and weekly_target_override > 0:
+        base_weekly = weekly_target_override
+
+    bmi = calc_bmi(weight, height) if weight and height else None
+    amod = age_modifier(age)
+    bmod = bmi_modifier(bmi, goal)
+    actmod = activity_modifier(activity_level)
+    cond_warning, cond_factor = health_condition_adjustments(conditions)
+
+    weekly = base_weekly * amod * bmod * actmod * cond_factor
+    weekly = max(60, round(weekly))
+    daily = round(weekly / 7.0)
+
+    notes = []
+    if bmi is not None:
+        notes.append(f"BMI: {bmi} ({bmi_category(bmi)})")
+    if cond_warning:
+        notes.append(cond_warning)
+    notes.append("(세부 조정은 내부 규칙에 따라 계산됨)")
+
+    return {
+        "weekly_minutes": int(weekly),
+        "daily_minutes": int(daily),
+        "bmi": bmi,
+        "notes": notes
+    }
 
 def generate_personalized_4week(age, weight, height, goal, weekly_minutes, sessions_per_week, intensity_pref):
-    # Build progressive 4-week plan. intensity_pref: '보통','인터벌','빠르게'
     plan = []
     weekly = weekly_minutes
     for w in range(1, 5):
-        # progressive increase depending on goal
         if goal == "체중 감량":
             week_factor = 0.9 + 0.05 * w
         elif goal == "심폐 지구력 향상":
@@ -140,13 +126,10 @@ def generate_personalized_4week(age, weight, height, goal, weekly_minutes, sessi
 
         week_total = int(round(weekly * week_factor))
         per_session = max(10, int(round(week_total / sessions_per_week)))
-
-        # Build session breakdown
         sessions = []
         for s in range(sessions_per_week):
             if goal == "체중 감량":
                 if intensity_pref == "인터벌":
-                    # Example interval session
                     main = f"인터벌: 3분 보통 + 1분 빠르게 x {max(1, per_session//4)}세트"
                 else:
                     main = f"지속 빠른 걷기 {max(0, per_session-10)}분"
@@ -173,70 +156,84 @@ def generate_personalized_4week(age, weight, height, goal, weekly_minutes, sessi
         })
     return plan
 
-
-def find_best_answer(question, kb, n=2):
-    keys = list(kb.keys())
-    matches = difflib.get_close_matches(question, keys, n=n, cutoff=0.45)
-    if not matches:
-        qlow = question.lower()
-        for k in keys:
-            if k.lower() in qlow or any(word in k.lower() for word in qlow.split()):
-                matches.append(k)
-    return matches
-
-# ------------------ Knowledge base ------------------
-KB = {
-    "권장 걷기 시간": "일반 권장: 주당 최소 150분 중간강도(또는 75분 고강도). 연령(30-50대) 전반적 권장량은 동일하지만 개인 상태에 따라 조정 필요.",
-    "강도 정의": "중간강도: 말은 가능하지만 노래는 어려움(예: 빠른 걷기). 고강도: 말하기 어려움(예: 달리기, 매우 빠른 보행).",
-    "BMI와 권장": "BMI가 높을수록 체중 감량 목표의 경우 더 많은 유산소량(예: 주 200분 이상)을 권할 수 있습니다. 다만 관절이나 심장 문제는 고려 필요합니다.",
-    "안전 수칙": "가슴 통증, 심한 어지러움, 과호흡이 있으면 즉시 중단하고 의료진 상담 요망. 운동 전에 준비운동, 후에 정리운동을 하세요.",
-}
-
 # ------------------ UI ------------------
-st.title("30–50대 맞춤 걷기 챗봇 \n(나이·체중·건강조건 기반 개인화)")
-st.caption("입력하신 조건을 바탕으로 권장 걷기 시간과 4주 계획을 생성합니다. 의료적 판단은 전문가 상담을 우선하세요.")
+st.title("30–50대 맞춤 걷기 챗봇 🏃‍♀️")
+st.caption("입력 조건을 기반으로 권장 걷기 시간과 4주 계획을 생성합니다. 의료 판단은 전문가 상담을 우선하세요.")
 
 with st.sidebar:
     st.header("개인 정보 입력")
     age = st.number_input("나이", min_value=30, max_value=50, value=35)
     sex = st.selectbox("성별", ["여성", "남성", "비공개"])
-    weight = st.number_input("체중(kg)", min_value=30.0, max_value=200.0, value=70.0, step=0.1)
-    height = st.number_input("키(cm)", min_value=120.0, max_value=230.0, value=170.0, step=0.1)
+    weight = st.number_input("체중(kg)", min_value=30.0, max_value=200.0, value=70.0)
+    height = st.number_input("키(cm)", min_value=120.0, max_value=230.0, value=170.0)
     activity_level = st.selectbox("평소 활동 수준", ["비활동적", "보통", "매우 활동적"], index=1)
     goal = st.selectbox("주요 목표", ["유지/건강한 생활", "체중 감량", "심폐 지구력 향상"])
-    conditions = st.text_input("기저질환/특이사항 (콤마로 구분, 예: 고혈압, 무릎 관절)")
-    weekly_override = st.number_input("직접 설정할 주간 목표(분, 원하면 입력)", min_value=0, value=0)
+    conditions = st.text_input("기저질환/특이사항 (예: 고혈압, 무릎 관절)")
+    weekly_override = st.number_input("직접 설정할 주간 목표(분)", min_value=0, value=0)
     st.markdown("---")
-    st.info("앱은 교육용입니다. 만약 심장질환·임신 등 특이상황이 있으면 전문가 상담을 먼저 받으세요.")
+    st.info("앱은 교육용입니다. 특이상황(심장질환, 임신 등)은 전문가 상담 후 이용하세요.")
 
-# Compute recommendation
+# ------------------ 메인 계산 ------------------
 if st.button("권장 시간 계산 및 4주 루틴 생성"):
-    rec = compute_recommendation(age, weight, height, sex, activity_level, goal, conditions, weekly_override if weekly_override>0 else None)
+    rec = compute_recommendation(age, weight, height, sex, activity_level, goal, conditions,
+                                 weekly_override if weekly_override > 0 else None)
+
     st.subheader("개인화 권장 결과")
     st.write(f"- 주간 권장(추정): {rec['weekly_minutes']} 분/주")
     st.write(f"- 일일 평균(추정): {rec['daily_minutes']} 분/일")
     if rec['bmi'] is not None:
         st.write(f"- BMI: {rec['bmi']} ({bmi_category(rec['bmi'])})")
-    if rec['notes']:
-        st.write("- 참고/주의사항:")
-        for n in rec['notes']:
-            st.write(f"  - {n}")
+    for n in rec['notes']:
+        st.write(f"  - {n}")
 
     st.markdown("---")
-    st.subheader("4주 맞춤 루틴 옵션")
-    sessions_per_week = st.slider("주당 세션 수", 3, 7, 5)
-    intensity_pref = st.selectbox("선호 강도 유형", ["보통", "인터벌", "빠르게"], index=0)
 
-    plan = generate_personalized_4week(age, weight, height, goal, rec['weekly_minutes'], sessions_per_week, intensity_pref)
+    # ----------- Fallback Dashboard (no plotly needed) -----------
+    st.markdown("## 🧭 개인 맞춤 대시보드")
 
-    # Show plan in readable format
+    col1, col2, col3 = st.columns(3)
+
+    # 1️⃣ BMI
+    with col1:
+        bmi_val = rec['bmi'] or 0
+        st.metric("BMI", f"{bmi_val}" if bmi_val else "측정불가")
+        norm = max(0, min(100, int((bmi_val - 10) / (40 - 10) * 100))) if bmi_val else 0
+        st.progress(norm)
+        st.caption(f"범주: {bmi_category(bmi_val) if bmi_val else '측정불가'}")
+
+    # 2️⃣ 주간 권장(분)
+    with col2:
+        weekly_val = rec['weekly_minutes']
+        st.metric("주간 권장(분)", f"{weekly_val} 분")
+        rel = max(0, min(100, int(weekly_val / 300.0 * 100)))
+        st.progress(rel)
+        st.caption("권장 범위 기준: 최대 300분")
+
+    # 3️⃣ 일일 평균(분)
+    with col3:
+        daily_val = rec['daily_minutes']
+        st.metric("일일 평균(분)", f"{daily_val} 분", delta=f"{daily_val-30} 분 vs 30분 기준")
+
+    st.markdown("---")
+
+    # 4️⃣ 4주 증가 추세
+    plan = generate_personalized_4week(age, weight, height, goal, rec['weekly_minutes'], 5, "보통")
+    week_labels = [p["주차"] for p in plan]
+    totals = [p["주간총시간(분)"] for p in plan]
+    df_weeks = pd.DataFrame({"주차": week_labels, "주간총시간(분)": totals}).set_index("주차")
+    st.subheader("📈 4주 진행 추세")
+    st.bar_chart(df_weeks)
+
+    st.markdown("---")
+
+    # 루틴 상세
     for w in plan:
-        st.markdown(f"### {w['주차']} — 주간 총 {w['주간총시간(분)']}분, 1회 약 {w['1회시간(분)']}분, 세션수 {w['세션수']}")
+        st.markdown(f"### {w['주차']} — 총 {w['주간총시간(분)']}분 / 1회 {w['1회시간(분)']}분")
         for s in w['세부세션']:
             st.write(f"• 세션 {s['세션번호']}: {s['세션시간(분)']}분 — {s['내용']}")
         st.markdown("---")
 
-    # Exportable CSV summary
+    # CSV 다운로드
     if st.button("루틴 요약 CSV로 다운로드"):
         rows = []
         for w in plan:
@@ -249,64 +246,8 @@ if st.button("권장 시간 계산 및 4주 루틴 생성"):
                 })
         df = pd.DataFrame(rows)
         csv = df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("CSV 다운로드", data=csv, file_name=f"walk_plan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv", mime='text/csv')
-
-    # ----- 대시보드 시각화 -----
-    import plotly.graph_objects as go
-    import streamlit.components.v1 as components
-
-    st.markdown("## 🧭 개인 맞춤 대시보드")
-
-    col1, col2, col3 = st.columns(3)
-
-    # 1️⃣ BMI 게이지
-    with col1:
-        bmi_val = rec['bmi'] or 0
-        fig_bmi = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=bmi_val,
-            title={'text': "BMI"},
-            gauge={'axis': {'range': [10, 40]},
-                   'bar': {'color': "darkblue"},
-                   'steps': [
-                       {'range': [10, 18.5], 'color': "#9bd1f7"},
-                       {'range': [18.5, 23], 'color': "#8eea8e"},
-                       {'range': [23, 25], 'color': "#f9e58b"},
-                       {'range': [25, 30], 'color': "#f9a27b"},
-                       {'range': [30, 40], 'color': "#f45b69"}]
-                   }
-        ))
-        st.plotly_chart(fig_bmi, use_container_width=True)
-
-    # 2️⃣ 주간 권장량 게이지
-    with col2:
-        fig_weekly = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=rec['weekly_minutes'],
-            title={'text': "주간 권장 걷기(분)"},
-            gauge={'axis': {'range': [0, 300]},
-                   'bar': {'color': "#4CAF50"}}
-        ))
-        st.plotly_chart(fig_weekly, use_container_width=True)
-
-    # 3️⃣ 일일 평균 그래프
-    with col3:
-        fig_daily = go.Figure(go.Indicator(
-            mode="number+delta",
-            value=rec['daily_minutes'],
-            title={'text': "일일 평균(분)"},
-            delta={'reference': 30, 'increasing': {'color': "#FF2E63"}}
-        ))
-        st.plotly_chart(fig_daily, use_container_width=True)
-
-    st.markdown("---")
-
-    # 4️⃣ 4주간 점진적 증가 시각화
-    week_labels = [p["주차"] for p in plan]
-    totals = [p["주간총시간(분)"] for p in plan]
-    st.subheader("📈 4주 진행 추세")
-    st.bar_chart(pd.DataFrame({"주간총시간(분)": totals}, index=week_labels))
-
-
+        st.download_button("CSV 다운로드", data=csv,
+                           file_name=f"walk_plan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                           mime='text/csv')
 
 st.caption("이 앱은 교육·참고용입니다. 특정 증상이나 고위험 상태가 의심되면 의료 전문가 상담을 우선하세요.")
