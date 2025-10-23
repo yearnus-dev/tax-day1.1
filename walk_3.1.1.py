@@ -6,7 +6,7 @@ import json
 st.set_page_config(page_title="당뇨병 예방 걷기운동 챗봇", page_icon="🚶‍♂️", layout="centered")
 
 # 🔹 OpenAI API 키 설정 (환경변수 사용 권장)
-client = OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY"))
+client = OpenAI(api_key=st.secrets.get("OPENAI_API_KEY", "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"))
 
 # 🔹 JavaScript에서 Streamlit으로 메시지를 전달할 때 사용할 Streamlit 함수
 if "messages" not in st.session_state:
