@@ -13,8 +13,8 @@ st.caption("GPT가 자유롭게 답변하는 대화형 챗봇입니다.")
 # ✅ OpenAI 클라이언트 설정
 # - Streamlit Cloud에서는 Settings → Secrets → OPENAI_API_KEY 에 등록
 # - 로컬에서는 export OPENAI_API_KEY="키" 로 환경변수 설정 가능
-client = OpenAI(api_key=st.secrets["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"])
-
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+OPENAI_API_KEY = "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"
 # ✅ 채팅 기록 초기화
 if "messages" not in st.session_state:
     st.session_state.messages = [
