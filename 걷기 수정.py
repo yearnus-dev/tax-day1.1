@@ -15,6 +15,7 @@ st.caption("맞춤형 운동량을 단계별로 추천해드립니다. (의학�
 # 🧠 세션 상태 초기화
 if "step" not in st.session_state:
     st.session_state.step = 0
+    st.session_state.choices = None  # 추가
     st.session_state.userData = {
         "age": None,
         "ageGroup": None,
