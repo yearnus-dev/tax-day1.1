@@ -175,28 +175,37 @@ with st.sidebar:
 
 # ------------------ 메인 계산 ------------------
 if st.button("권장 시간 계산 및 4주 루틴 생성"):
+    # 계산
     rec = compute_recommendation(age, weight, height, sex, activity_level, goal, conditions,
                                  weekly_override if weekly_override > 0 else None)
 
+    # 요약 결과 출력
     st.subheader("개인화 권장 결과")
     st.write(f"- 주간 권장(추정): {rec['weekly_minutes']} 분/주")
     st.write(f"- 일일 평균(추정): {rec['daily_minutes']} 분/일")
     if rec['bmi'] is not None:
         st.write(f"- BMI: {rec['bmi']} ({bmi_category(rec['bmi'])})")
-    for n in rec['notes']:
-        st.write(f"  - {n}")
+    if rec['notes']:
+        st.write("- 참고/주의사항:")
+        for n in rec['notes']:
+            st.write(f"  - {n}")
 
     st.markdown("---")
 
-    # ----- 대시보드 시각화 (plotly 없이 작동하는 fallback 버전) -----
-    import pandas as _pd
+    # 사용자로부터 세션 수와 강도 선호를 받음 (대시보드/루틴 생성 전)
+    sessions_per_week = st.slider("주당 세션 수", 3, 7, 5)
+    intensity_pref = st.selectbox("선호 강도 유형", ["보통", "인터벌", "빠르게"], index=0)
 
-    st.markdown("### 🧭 개인 맞춤 대시보드")
+    # plan 생성 (이제 plan은 확실히 정의됨)
+    plan = generate_personalized_4week(age, weight, height, goal, rec['weekly_minutes'], sessions_per_week, intensity_pref)
 
-    # 👇 작게 표현하기 위해 컬럼 비율을 조정 (전체 폭의 절반 크기)
+    # ----------- Fallback Dashboard (plotly 없이) -----------
+    st.markdown("### 🧭 개인 맞춤 대시보드 (간략형)")
+
+    # 컬럼 비율을 작게: 화면에서 작게 보이도록 구성
     col1, col2, col3 = st.columns([1, 1, 1])
 
-    # BMI 표시
+    # BMI 카드
     with col1:
         bmi_val = rec.get('bmi') or 0
         st.markdown("##### BMI")
@@ -210,7 +219,7 @@ if st.button("권장 시간 계산 및 4주 루틴 생성"):
             st.progress(0)
             st.caption("정보 없음")
 
-    # 주간 권장 걷기(분)
+    # 주간 권장 카드
     with col2:
         weekly_val = rec.get('weekly_minutes', 0)
         st.markdown("##### 주간 권장(분)")
@@ -219,7 +228,7 @@ if st.button("권장 시간 계산 및 4주 루틴 생성"):
         st.progress(rel)
         st.caption("목표 300분 기준")
 
-    # 일일 평균(분)
+    # 일일 평균 카드
     with col3:
         daily_val = rec.get('daily_minutes', 0)
         st.markdown("##### 일일 평균(분)")
@@ -229,39 +238,57 @@ if st.button("권장 시간 계산 및 4주 루틴 생성"):
 
     st.markdown("---")
 
-    # 4주간 추세 시각화 (bar_chart)
-    st.markdown("#### 📈 4주 진행 추세 (간략 보기)")
+    # 4주간 추세 (여기서 plan은 정의되어 있음)
+    st.markdown("#### 📈 4주 진행 추세 (간략)")
     week_labels = [p["주차"] for p in plan]
     totals = [p["주간총시간(분)"] for p in plan]
-    df_weeks = _pd.DataFrame({"주차": week_labels, "주간총시간(분)": totals}).set_index("주차")
+    df_weeks = pd.DataFrame({"주차": week_labels, "주간총시간(분)": totals}).set_index("주차")
     st.bar_chart(df_weeks, use_container_width=True)
-
-    # 요약 카드
-    st.markdown("#### 🔎 요약")
-    cola, colb = st.columns(2)
-    with cola:
-        st.write(f"- **목표:** {goal}")
-        st.write(f"- **주당 권장:** {weekly_val}분")
-        st.write(f"- **일일 평균:** {daily_val}분")
-    with colb:
-        if rec.get('bmi') is not None:
-            st.write(f"- **BMI:** {rec['bmi']:.1f} ({bmi_category(rec['bmi'])})")
-        if rec.get('notes'):
-            st.write("- **참고사항:**")
-            for n in rec['notes']:
-                st.write(f"  - {n}")
 
     st.markdown("---")
 
-    # CSV 다운로드 (기존 함수 활용 가능)
-    df_plan = _pd.DataFrame(plan)
-    csv = df_plan.to_csv(index=False).encode('utf-8-sig')
-    st.download_button(
-        label="📥 걷기 계획표 다운로드 (CSV)",
-        data=csv,
-        file_name='walking_plan.csv',
-        mime='text/csv',
-    )
+    # 4주 루틴 상세 출력
+    st.subheader("4주 맞춤 루틴 상세")
+    for w in plan:
+        st.markdown(f"### {w['주차']} — 총 {w['주간총시간(분)']}분 / 1회 {w['1회시간(분)']}분, 세션수 {w['세션수']}")
+        for s in w['세부세션']:
+            st.write(f"• 세션 {s['세션번호']}: {s['세션시간(분)']}분 — {s['내용']}")
+        st.markdown("---")
+
+    # 칼로리 소모 및 걸음 수(요청하신 추가 항목) — 간단 추정
+    # 가정: 1분당 걸음수 = 100걸음, 걷기 분당 칼로리 소모 = 4.5 kcal (대략 값, 개인별 차이 큼)
+    est_steps_per_min = 100
+    est_kcal_per_min = 4.5
+    total_week_minutes = rec['weekly_minutes']
+    est_week_steps = total_week_minutes * est_steps_per_min
+    est_week_kcal = total_week_minutes * est_kcal_per_min
+
+    st.markdown("#### 🔥 예상 주간 소모/걸음 (간략 추정)")
+    c1, c2 = st.columns(2)
+    with c1:
+        st.metric("예상 주간 걸음 수", f"{int(est_week_steps):,} 걸음")
+    with c2:
+        st.metric("예상 주간 칼로리 소모", f"{int(est_week_kcal):,} kcal (추정)")
+
+    st.markdown("---")
+
+    # CSV 다운로드: 계획을 세션별로 정리해서 제공
+    if st.button("루틴 요약 CSV로 다운로드"):
+        rows = []
+        for w in plan:
+            for s in w['세부세션']:
+                rows.append({
+                    '주차': w['주차'],
+                    '세션번호': s['세션번호'],
+                    '세션시간(분)': s['세션시간(분)'],
+                    '내용': s['내용']
+                })
+        df = pd.DataFrame(rows)
+        csv = df.to_csv(index=False).encode('utf-8-sig')
+        st.download_button("CSV 다운로드", data=csv,
+                           file_name=f"walk_plan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                           mime='text/csv')
+
 
 
 st.caption("이 앱은 교육·참고용입니다. 특정 증상이나 고위험 상태가 의심되면 의료 전문가 상담을 우선하세요.")
