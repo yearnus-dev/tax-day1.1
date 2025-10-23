@@ -34,7 +34,7 @@ def get_exercises(body_part="legs", limit=3):
         return []
 
 # -------- Streamlit UI --------
-st.title("🏃‍♂️ 30대 이상 성인 하루 권장 운동량 트래커")
+st.title("🏃‍♂️ 일주일 운동량 달성률")
 
 st.sidebar.header("사용자 정보 입력")
 name = st.sidebar.text_input("이름", "홍길동")
@@ -65,7 +65,3 @@ if st.session_state["records"]:
 else:
     st.info("운동 기록을 입력해주세요.")
 
-# 운동 추천 섹션
-st.subheader("💪 추천 운동 (하체 기준)")
-for ex in get_exercises("legs"):
-    st.write(f"**{ex['name']}** - {ex['target']}")
